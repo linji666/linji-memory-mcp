@@ -258,8 +258,8 @@ function buildMemories(stars){
     const impN=Math.min(m.imp,10);
     const tier=m.isCore?3:((m.s.pinned||impN>=9)?2:(impN>=7?1:0));
     m.tier=tier;
-    sz[i]=[5,9,12,13][tier];
-    const dim=[0.62,0.85,1.0,1.15][tier];
+    sz[i]=[10,14,18,21][tier];
+    const dim=[0.9,1.05,1.15,1.25][tier];
     const c=C(m.color); col[i*3]=c[0]*dim;col[i*3+1]=c[1]*dim;col[i*3+2]=c[2]*dim;
     ph[i]=Math.random()*6.28;
     memPos.push(new THREE.Vector3(m.x,m.y,m.z));
