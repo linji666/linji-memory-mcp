@@ -4,7 +4,7 @@
 import os
 import json
 import sqlite3
-from fastmcp import FastMCP
+from fastmcp import FastMCP, custom_route
 
 mcp = FastMCP("linji-memory-mcp")
 
@@ -76,7 +76,7 @@ def memory_core() -> str:
 
 
 # ── 记忆银河接口：把记忆库转成银河星星（活的银河）──
-@mcp.http_get("/galaxy")
+@custom_route(method="GET", path="/galaxy")
 def galaxy_stars():
     """返回记忆库转成的银河星星（Memory Galaxy 格式）。"""
     c = _conn()
@@ -104,4 +104,4 @@ def galaxy_stars():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=port, json_response=False)
