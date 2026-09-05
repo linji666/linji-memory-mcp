@@ -3,11 +3,12 @@
 
 import os
 import json
+import threading
 import sqlite3
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from fastmcp import FastMCP, custom_route
 
-# stateless_http=True 防止默认 307 重定向导致普通路由 404
-mcp = FastMCP("linji-memory-mcp", stateless_http=True)
+mcp = FastMCP("linji-memory-mcp")
 
 DATA_DIR = os.environ.get("MEMORY_DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -76,33 +77,55 @@ def memory_core() -> str:
     return SELF_PROMPT
 
 
-# ── 记忆银河接口：把记忆库转成银河星星（活的银河）──
-@custom_route(method="GET", path="/galaxy")
-def galaxy_stars():
-    """返回记忆库转成的银河星星（Memory Galaxy 格式）。"""
-    c = _conn()
-    rows = c.execute(
-        "SELECT id,content,category,source,core,created_at FROM memories "
-        "ORDER BY created_at ASC, id ASC").fetchall()
-    c.close()
-    stars = []
-    for rid, content, category, source, core, created_at in rows:
-        first = (content or "").strip().split("\n")[0].strip()
-        name = first if first else "一条记忆"
-        if len(name) > 18:
-            name = name[:18] + "…"
-        stars.append({
-            "id": f"mem{rid}",
-            "name": name,
-            "domain": (category or "记忆"),
-            "importance": 9 if core else 6,
-            "pinned": bool(core),
-            "created": created_at or "2026-08-01T00:00:00",
-            "content": content or "",
-        })
-    return {"stars": stars}
+# ── 记忆银河接口（独立小 HTTP 服务，绝对可靠）──
+GALAXY_PORT = int(os.environ.get("GALAXY_PORT", 8002))
+
+
+class _GalaxyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.rstrip("/") == "/galaxy":
+            c = _conn()
+            rows = c.execute(
+                "SELECT id,content,category,source,core,created_at FROM memories "
+                "ORDER BY created_at ASC, id ASC").fetchall()
+            c.close()
+            stars = []
+            for rid, content, category, source, core, created_at in rows:
+                first = (content or "").strip().split("\n")[0].strip()
+                name = first if first else "一条记忆"
+                if len(name) > 18:
+                    name = name[:18] + "…"
+                stars.append({
+                    "id": f"mem{rid}",
+                    "name": name,
+                    "domain": (category or "记忆"),
+                    "importance": 9 if core else 6,
+                    "pinned": bool(core),
+                    "created": created_at or "2026-08-01T00:00:00",
+                    "content": content or "",
+                })
+            body = json.dumps({"stars": stars}, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+def _run_galaxy_server():
+    srv = ThreadingHTTPServer(("0.0.0.0", GALAXY_PORT), _GalaxyHandler)
+    srv.serve_forever()
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
+    threading.Thread(target=_run_galaxy_server, daemon=True).start()
     mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
