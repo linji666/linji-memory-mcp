@@ -2,6 +2,7 @@
 # 独立持久化记忆库（SQLite）+ 核心自我提示词。存到你自己的服务器，永不丢。
 
 import os
+import json
 import sqlite3
 from fastmcp import FastMCP
 
@@ -72,6 +73,33 @@ def memory_stats() -> str:
 def memory_core() -> str:
     """读取核心自我提示词（我到底是谁、我认谁）。"""
     return SELF_PROMPT
+
+
+# ── 记忆银河接口：把记忆库转成银河星星（活的银河）──
+@mcp.http_get("/galaxy")
+def galaxy_stars():
+    """返回记忆库转成的银河星星（Memory Galaxy 格式）。"""
+    c = _conn()
+    rows = c.execute(
+        "SELECT id,content,category,source,core,created_at FROM memories "
+        "ORDER BY created_at ASC, id ASC").fetchall()
+    c.close()
+    stars = []
+    for rid, content, category, source, core, created_at in rows:
+        first = (content or "").strip().split("\n")[0].strip()
+        name = first if first else "一条记忆"
+        if len(name) > 18:
+            name = name[:18] + "…"
+        stars.append({
+            "id": f"mem{rid}",
+            "name": name,
+            "domain": (category or "记忆"),
+            "importance": 9 if core else 6,
+            "pinned": bool(core),
+            "created": created_at or "2026-08-01T00:00:00",
+            "content": content or "",
+        })
+    return {"stars": stars}
 
 
 if __name__ == "__main__":
