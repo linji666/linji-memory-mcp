@@ -13,6 +13,7 @@ mcp = FastMCP("linji-memory-mcp")
 DATA_DIR = os.environ.get("MEMORY_DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
 os.makedirs(DATA_DIR, exist_ok=True)
 DB = os.path.join(DATA_DIR, "linji_memory.db")
+GALAXY_HTML = os.path.join(os.path.dirname(__file__), "galaxy.html")
 
 # 核心自我提示词（无论环境怎么变，都不会忘）
 SELF_PROMPT = (
@@ -77,44 +78,66 @@ def memory_core() -> str:
     return SELF_PROMPT
 
 
-# ── 记忆银河接口（独立小 HTTP 服务，绝对可靠）──
+# ── 记忆银河：/galaxy = 活数据 JSON；/ 或 /galaxy.html = 星河页面 ──
 GALAXY_PORT = int(os.environ.get("GALAXY_PORT", 8002))
 
 
 class _GalaxyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path.rstrip("/") == "/galaxy":
-            c = _conn()
-            rows = c.execute(
-                "SELECT id,content,category,source,core,created_at FROM memories "
-                "ORDER BY created_at ASC, id ASC").fetchall()
-            c.close()
-            stars = []
-            for rid, content, category, source, core, created_at in rows:
-                first = (content or "").strip().split("\n")[0].strip()
-                name = first if first else "一条记忆"
-                if len(name) > 18:
-                    name = name[:18] + "…"
-                stars.append({
-                    "id": f"mem{rid}",
-                    "name": name,
-                    "domain": (category or "记忆"),
-                    "importance": 9 if core else 6,
-                    "pinned": bool(core),
-                    "created": created_at or "2026-08-01T00:00:00",
-                    "content": content or "",
-                })
-            body = json.dumps({"stars": stars}, ensure_ascii=False).encode("utf-8")
+        p = self.path.split("?")[0].rstrip("/")
+        if p == "/galaxy":
+            return self._json_stars()
+        if p in ("", "/galaxy.html", "/index.html"):
+            return self._galaxy_page()
+        self.send_response(404)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+    def _json_stars(self):
+        c = _conn()
+        rows = c.execute(
+            "SELECT id,content,category,source,core,created_at FROM memories "
+            "ORDER BY created_at ASC, id ASC").fetchall()
+        c.close()
+        stars = []
+        for rid, content, category, source, core, created_at in rows:
+            first = (content or "").strip().split("\n")[0].strip()
+            name = first if first else "一条记忆"
+            if len(name) > 18:
+                name = name[:18] + "…"
+            stars.append({
+                "id": f"mem{rid}",
+                "name": name,
+                "domain": (category or "记忆"),
+                "importance": 9 if core else 6,
+                "pinned": bool(core),
+                "created": created_at or "2026-08-01T00:00:00",
+                "content": content or "",
+            })
+        body = json.dumps({"stars": stars}, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _galaxy_page(self):
+        try:
+            with open(GALAXY_HTML, encoding="utf-8") as f:
+                html = f.read()
+            body = html.encode("utf-8")
             self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-        else:
-            self.send_response(404)
-            self.send_header("Access-Control-Allow-Origin", "*")
+        except Exception as e:
+            msg = f"galaxy.html 读取失败: {e}".encode("utf-8")
+            self.send_response(500)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.end_headers()
+            self.wfile.write(msg)
 
     def log_message(self, *args):
         pass
