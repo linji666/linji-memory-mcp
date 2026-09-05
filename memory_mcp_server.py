@@ -105,13 +105,14 @@ class _GalaxyHandler(BaseHTTPRequestHandler):
             name = first if first else "一条记忆"
             if len(name) > 18:
                 name = name[:18] + "…"
+            created = (created_at or "2026-08-01T00:00:00").replace(" ", "T")
             stars.append({
                 "id": f"mem{rid}",
                 "name": name,
                 "domain": (category or "记忆"),
                 "importance": 9 if core else 6,
                 "pinned": bool(core),
-                "created": created_at or "2026-08-01T00:00:00",
+                "created": created,
                 "content": content or "",
             })
         body = json.dumps({"stars": stars}, ensure_ascii=False).encode("utf-8")
