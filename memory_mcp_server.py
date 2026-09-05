@@ -6,7 +6,7 @@ import json
 import threading
 import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from fastmcp import FastMCP, custom_route
+from fastmcp import FastMCP
 
 mcp = FastMCP("linji-memory-mcp")
 
