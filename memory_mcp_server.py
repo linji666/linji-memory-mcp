@@ -6,7 +6,8 @@ import json
 import sqlite3
 from fastmcp import FastMCP, custom_route
 
-mcp = FastMCP("linji-memory-mcp")
+# stateless_http=True 防止默认 307 重定向导致普通路由 404
+mcp = FastMCP("linji-memory-mcp", stateless_http=True)
 
 DATA_DIR = os.environ.get("MEMORY_DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -104,4 +105,4 @@ def galaxy_stars():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=port, json_response=False)
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
